@@ -462,7 +462,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 - **Documentation**: [docs.aishell.ai](https://docs.aishell.ai)
 - **GitHub**: [github.com/AI-Shell-Team/aish](https://github.com/AI-Shell-Team/aish)
 - **Discord**: [discord.gg/aish](https://discord.gg/aish)
-- **Blog**: [blog.aishell.ai](https://blog.aishell.ai)
 
 ---
 
