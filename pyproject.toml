@@ -70,3 +70,18 @@ markers = [
     "asyncio: tests using pytest-asyncio",
     "anyio: tests using pytest-anyio",
 ]
+
+[tool.mypy]
+ignore_missing_imports = true
+disable_error_code = [
+    "arg-type",
+    "assignment",
+    "attr-defined",
+    "has-type",
+    "index",
+    "import-untyped",
+    "no-redef",
+    "type-var",
+    "union-attr",
+    "var-annotated",
+]

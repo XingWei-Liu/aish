@@ -46,8 +46,6 @@ async def get_user_input(
     import threading
     import time
 
-    from prompt_toolkit.buffer import Buffer
-    from prompt_toolkit.document import Document
     from prompt_toolkit.filters import Condition
     from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.keys import Keys
@@ -124,7 +122,7 @@ async def get_user_input(
         while not refresh_stop_event.is_set():
             time.sleep(0.1)  # 每 100ms 检查一次
             # 检查提示是否超时
-            current_msg = self.interruption_manager.get_prompt_message()
+            self.interruption_manager.get_prompt_message()
             # 如果 app 可用，强制刷新
             if app_ref[0] is not None:
                 try:
@@ -284,7 +282,6 @@ async def get_user_input(
     except EOFError:
         action = key_action.get("action")
         has_input = key_action.get("has_input", False)
-        input_text = key_action.get("input_text", "")
 
         if action == "ctrl_c_cleared":
             return await self.get_user_input(prompt_text, _recursion_depth + 1)
@@ -373,9 +370,7 @@ def handle_ask_user_required(shell: Any, event: LLMEvent) -> LLMCallbackResult:
     allow_cancel = bool(data.get("allow_cancel", True))
     allow_custom_input = bool(data.get("allow_custom_input", False))
     custom_label_raw = data.get("custom_label")
-    custom_prompt_raw = data.get("custom_prompt")
     custom_label = str(custom_label_raw or t("shell.ask_user.custom_label"))
-    custom_prompt = str(custom_prompt_raw or t("shell.ask_user.custom_prompt"))
     if isinstance(custom_label_raw, str) and custom_label_raw.strip():
         label_text = custom_label_raw.strip()
     else:

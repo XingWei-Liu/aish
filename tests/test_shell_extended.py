@@ -2,12 +2,11 @@
 Extended comprehensive tests for Shell functionality
 """
 
-import asyncio
 import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -261,12 +260,8 @@ class TestAIShellExtended:
                     # Test unquoted path with spaces
                     await self.shell.handle_cd_command(f"cd {space_dir}")
 
-                    # Should show tip about quoting
-                    tip_shown = any(
-                        "tip" in str(call).lower() or "quote" in str(call).lower()
-                        for call in mock_print.call_args_list
-                    )
                     # Implementation may or may not show tip
+                    assert mock_print is not None
 
                     # Directory should change
                     assert os.path.samefile(os.getcwd(), space_dir)
@@ -463,7 +458,7 @@ class TestAIShellExtended:
         ) as mock_llm:
             mock_llm.return_value = "Oracle response with context"
 
-            response = await self.shell.ask_oracle("What is the current directory?")
+            await self.shell.ask_oracle("What is the current directory?")
 
             mock_llm.assert_called_once()
             # Verify system message includes context
@@ -764,7 +759,7 @@ class TestShellCompleter:
 
     def test_shell_completer_commands(self):
         """Test that shell completer includes expected commands"""
-        completer = make_shell_completer()
+        assert make_shell_completer() is not None
 
         # This would test specific command completion
         # Implementation depends on NestedCompleter structure
