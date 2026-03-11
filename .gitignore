@@ -88,3 +88,5 @@ prefetched_data/
 # github copilot
 #.github
 tmp
+CLAUDE.md
+opencode
