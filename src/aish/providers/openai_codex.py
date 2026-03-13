@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeAlias
+from typing import Any, Callable, Optional
 from urllib.parse import urlsplit
 
 import httpx
@@ -22,7 +22,7 @@ from .oauth import (OAuthPkceCodes, OAuthProviderSpec, OAuthTokens,
                     generate_state as generate_oauth_state,
                     login_with_browser as login_with_oauth_browser,
                     login_with_device_code as login_with_oauth_device_code)
-from .provider_interface import ProviderAuthConfig
+from .interface import ProviderAuthConfig
 
 OPENAI_CODEX_PROVIDER = "openai-codex"
 OPENAI_CODEX_DEFAULT_MODEL = "gpt-5.4"
@@ -86,8 +86,8 @@ class OpenAICodexAuthState:
         return int(time.time()) >= (self.expires_at - leeway_seconds)
 
 
-OpenAICodexPkceCodes: TypeAlias = OAuthPkceCodes
-OpenAICodexOAuthTokens: TypeAlias = OAuthTokens
+OpenAICodexPkceCodes = OAuthPkceCodes
+OpenAICodexOAuthTokens = OAuthTokens
 
 
 @dataclass
