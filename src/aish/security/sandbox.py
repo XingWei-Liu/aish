@@ -630,9 +630,10 @@ class SandboxExecutor:
             if lazy.returncode == 0:
                 return
 
-        print(f"[sandbox] WARNING: failed to umount {path}", file=sys.stderr)
+        print(f"[sandbox] WARNING: failed to umount {path} (target is busy).", file=sys.stderr)
+        print("[sandbox] WARNING: This may be due to a propagation leak if the sandbox was created in a shared mount namespace.", file=sys.stderr)
         if stderr:
-            print(stderr, file=sys.stderr)
+            print(f"[sandbox] Error details: {stderr}", file=sys.stderr)
 
     def _run_in_bubblewrap(
         self,
@@ -795,6 +796,10 @@ class SandboxExecutor:
                 # Base root: readonly bind mount
                 self._bind_mount(Path("/"), merged)
                 self._remount_bind_readonly(merged)
+
+                # Ensure mount namespace is private so sub-mounts don't propagate to host.
+                # This is critical when repo_root is / and the host's / is shared.
+                run_cmd(["mount", "--make-private", str(merged)])
 
                 # Overlay each top-level directory to allow writes and observe changes.
                 overlay_targets = self._list_system_root_overlay_targets()

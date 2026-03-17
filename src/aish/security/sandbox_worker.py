@@ -55,6 +55,14 @@ def main() -> int:
 
         cfg = SandboxConfig(repo_root=root_path)
         executor = SandboxExecutor(cfg)
+
+        # Redundant isolation: ensure everything in this namespace is private.
+        # This prevents accidental leak if 'unshare --propagation private' was omitted or failed.
+        try:
+            subprocess.run(["mount", "--make-rprivate", "/"], check=False, capture_output=True)
+        except Exception:
+            pass
+
         result = executor.simulate(
             command,
             cwd=cwd_path,
