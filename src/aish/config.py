@@ -311,26 +311,33 @@ class Config:
             self.config_dir = self.config_file.parent
         else:
             # Use default config file path
-            xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
-            if xdg_config_home:
-                base_dir = Path(xdg_config_home).expanduser()
+            # Priority: AISH_CONFIG_DIR > XDG_CONFIG_HOME > ~/.config
+            aish_config_dir = os.environ.get("AISH_CONFIG_DIR")
+            if aish_config_dir:
+                # AISH_CONFIG_DIR points directly to the aish config directory
+                self.config_dir = Path(aish_config_dir).expanduser()
+                self.config_file = self.config_dir / "config.yaml"
             else:
-                # Tests should never touch real user config under $HOME.
-                # Detect pytest by presence in sys.modules (more reliable than env vars).
-                # Note: pytest itself may not be imported as "pytest"; internal modules use "_pytest".
-                is_pytest = any(
-                    name == "pytest"
-                    or name.startswith("pytest.")
-                    or name.startswith("_pytest")
-                    for name in sys.modules
-                )
-                if is_pytest:
-                    base_dir = Path(tempfile.gettempdir()) / "aish-test-config"
+                xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
+                if xdg_config_home:
+                    base_dir = Path(xdg_config_home).expanduser()
                 else:
-                    base_dir = Path.home() / ".config"
+                    # Tests should never touch real user config under $HOME.
+                    # Detect pytest by presence in sys.modules (more reliable than env vars).
+                    # Note: pytest itself may not be imported as "pytest"; internal modules use "_pytest".
+                    is_pytest = any(
+                        name == "pytest"
+                        or name.startswith("pytest.")
+                        or name.startswith("_pytest")
+                        for name in sys.modules
+                    )
+                    if is_pytest:
+                        base_dir = Path(tempfile.gettempdir()) / "aish-test-config"
+                    else:
+                        base_dir = Path.home() / ".config"
 
-            self.config_dir = base_dir / "aish"
-            self.config_file = self.config_dir / "config.yaml"
+                self.config_dir = base_dir / "aish"
+                self.config_file = self.config_dir / "config.yaml"
 
         self.history_file = self.config_dir / "history"
 
@@ -340,6 +347,9 @@ class Config:
 
         # Initialize default skills directory
         self._init_skills_dir()
+
+        # Initialize default scripts directory
+        self._init_scripts_dir()
 
         # Load or create default configuration
         self.config_model = self._load_config()
@@ -488,6 +498,75 @@ class Config:
                 shutil.copytree(skill_entry, dest_skill_path, symlinks=True)
             except (OSError, IOError, shutil.Error):
                 # Silently fail for individual skill, continue with others
+                pass
+
+    def _init_scripts_dir(self) -> None:
+        """Initialize default scripts directory from system prompts.
+
+        Copies .aish files from /usr/share/aish/prompts to ~/.config/aish/scripts.
+        Only copies scripts that don't already exist in the user's directory.
+        """
+        # Skip for custom config or pytest
+        if self.is_custom_config:
+            return
+
+        is_pytest = any(
+            name == "pytest" or name.startswith("pytest.") or name.startswith("_pytest")
+            for name in sys.modules
+        )
+        if is_pytest:
+            return
+
+        # User scripts directory
+        user_scripts_dir = self.config_dir / "scripts"
+
+        # Create user scripts directory if it doesn't exist
+        if not user_scripts_dir.exists():
+            try:
+                user_scripts_dir.mkdir(parents=True, exist_ok=True)
+            except (OSError, IOError):
+                # Silently fail if we can't create directory
+                return
+
+        # Possible system prompts locations
+        system_prompts_locations = [
+            Path("/usr/share/aish/prompts"),  # Debian package install location
+            Path("/usr/local/share/aish/prompts"),  # Local install location
+        ]
+
+        # Check for PyInstaller bundle location (sys._MEIPASS)
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            meipass_prompts = Path(sys._MEIPASS) / "aish" / "scripts" / "prompts"
+            if meipass_prompts.is_dir():
+                system_prompts_locations.insert(0, meipass_prompts)
+
+        # Find the first existing system prompts directory
+        source_prompts_dir = None
+        for location in system_prompts_locations:
+            if location.is_dir():
+                source_prompts_dir = location
+                break
+
+        if source_prompts_dir is None:
+            # No system prompts found, nothing to copy
+            return
+
+        # Copy each .aish file only if it doesn't exist in user directory
+        for prompt_file in source_prompts_dir.iterdir():
+            if not prompt_file.is_file() or not prompt_file.name.endswith(".aish"):
+                continue
+
+            dest_script_path = user_scripts_dir / prompt_file.name
+
+            # Skip if script already exists in user directory
+            if dest_script_path.exists():
+                continue
+
+            try:
+                # Copy individual script file
+                shutil.copy2(prompt_file, dest_script_path)
+            except (OSError, IOError):
+                # Silently fail for individual script, continue with others
                 pass
 
     def save_config(self) -> None:
