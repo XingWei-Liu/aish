@@ -18,6 +18,8 @@ Empower the Shell to think. Evolve Operations.
 
 **A Real AI Shell: Complete PTY + Configurable Security & Risk Control**
 
+
+
 </div>
 
 ---
@@ -328,6 +330,11 @@ Recommendations:
 | [GitHub Issues](https://github.com/AI-Shell-Team/aish/issues) | Bug reports |
 | [GitHub Discussions](https://github.com/AI-Shell-Team/aish/discussions) | Community discussions |
 | [Discord](https://discord.com/invite/Pw2mjZt3) | Join the community |
+
+
+> If you find AISH helpful, please consider giving us a Star ⭐
+>It helps more people discover the project and keeps us motivated to continue improving it.
+
 
 ---
 

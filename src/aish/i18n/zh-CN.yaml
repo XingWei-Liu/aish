@@ -11,51 +11,60 @@ cli:
     model: "要使用的模型（也可通过 AISH_MODEL 或配置文件设置）。"
     api_key: "大模型服务的 API Key（也可通过 AISH_API_KEY 或各厂商环境变量设置）。"
     api_base: "大模型服务的 API Base（也可通过 AISH_API_BASE 或配置文件设置）。"
-    verbose: "启用更详细的日志输出（也可通过 AISH_VERBOSE 或配置文件设置）。"
     config: "配置文件路径（默认：~/.config/aish/config.yaml）。"
 
-  config_prompt:
-    title: "配置"
-    header: "请输入大模型连接配置（必填）。"
-    api_base: "API Base"
-    api_key: "API Key"
-    model: "模型"
-    error:
-      required: "该项不能为空，请重新输入。"
-      invalid_url: "URL 无效，请输入完整 http/https URL。"
-      too_long: "输入过长，请缩短后重试。"
-      no_spaces: "API Key 不能包含空格。"
-
   setup:
+    entry_title: "初始化配置"
+    entry_header: "请选择 API 接入方式。"
+    step_free_key: "免费 Key 配置"
     step_provider: "步骤 1/3：选择 Provider"
     step_provider_endpoint: "步骤 1.5/3：选择端点"
-    step_zai_endpoint: "步骤 1.5/3：选择 Z.AI 端点"
     step_key: "步骤 2/3：填写 API Key"
     step_model: "步骤 3/3：选择模型"
+    free_key_header: "通过本机设备指纹获取免费 API Key。"
+    free_key_detecting_location: "正在检测服务区域..."
+    free_key_location_detected: "检测到区域：{location}"
+    free_key_location_cn: "国内节点"
+    free_key_location_overseas: "国际节点"
+    free_key_registering: "正在注册免费 API Key..."
+    free_key_success: "已获取免费 API Key"
+    free_key_already_registered: "该设备已注册过免费Key"
+    free_key_failed_with_reason: "免费 API Key 注册失败：{reason}"
+    free_key_provider_label: "免费 API"
+    free_key_privacy_title: "隐私声明"
+    free_key_privacy_notice: |
+      为了提供免费 API Key 服务，我们需要收集以下设备信息：
+
+      • 设备指纹（基于 MAC 地址、磁盘序列号、主板序列号等硬件信息生成的哈希值）
+      • 服务区域（用于分配最近的服务节点）
+
+      用途说明：
+      • 设备指纹用于防止滥用，确保每个设备只能获取一次免费 Key
+      • 服务区域用于为您分配最近的服务节点
+
+      我们承诺：
+      • 不会收集任何个人身份信息
+      • 设备指纹为不可逆的哈希值，无法还原原始硬件信息
+      • 数据仅用于本服务，不会与第三方共享
+    free_key_quota_exhausted: "免费额度已用完"
+    free_key_quota_exhausted_hint: "您的免费 API Key 额度已耗尽，请配置您自己的 API Key 继续使用。"
+    free_key_service_unavailable: "服务暂时不可用"
+    free_key_service_unavailable_hint: "服务器资源已达上限或服务暂时不可用，请联系管理员增加配额，或配置您自己的 API Key 继续使用。"
     provider_header: "选择 Provider"
     provider_filter_prompt: "过滤："
     provider_filter_hint: "输入关键词实时过滤，↑/↓ 选择，回车确认，Esc 取消"
     provider_selected_label: "Provider"
     provider_endpoint_selected_label: "端点"
-    zai_endpoint_selected_label: "Z.AI 端点"
     provider_endpoint_header: "选择 {provider} API 端点"
-    zai_endpoint_header: "选择 Z.AI API 端点"
     model_selected_label: "Model"
-    provider_column: "Provider"
-    zai_endpoint_column: "Z.AI 端点"
-    provider_endpoint_column: "端点"
-    provider_note_column: "备注"
     provider_custom_note: "OpenAI-compatible"
     provider_preset_base: "预设 API Base"
-    provider_custom_title: "自定义 Provider"
-    provider_custom_header: "请输入自定义 Provider 的 API Base。"
     custom_api_base_title: "API Base URL"
     custom_api_base_header: "请输入 API Base URL。"
     provider_custom_api_base: "API Base URL"
     provider_custom_api_base_required: "API Base 不能为空"
     provider_custom_api_base_invalid: "API Base 无效，请输入完整 URL"
     provider_custom_default: "Custom"
-    prompt_select: "输入序号，或输入关键词过滤，或输入 q 退出"
     invalid_choice: "选择无效，请重试"
     filter_no_results: "没有匹配项，请重新输入或回车显示全部"
     api_key_header: "请输入 API Key（将保存到配置文件）"
@@ -67,46 +76,28 @@ cli:
     model_prompt: "模型名称（输入 back 返回选择 Provider）"
     model_hint_openrouter: "OpenRouter 需要 provider 前缀（如 openai/gpt-4o）。未带前缀将默认使用 openai/。"
     model_hint_custom: "自定义 Provider 按 OpenAI-Compatible 处理，未带前缀将保存为 openai/<model>。"
-    model_hint_zai: "推荐模型：{default}。可用模型：glm-5, glm-4.7, glm-4.7-flash, glm-4.7-flashx"
     model_hint_provider: "推荐模型：{default}"
-    model_list_found: "从 Provider 获取到 {count} 个模型"
     model_list_unavailable: "模型列表不可用，请手动输入"
     model_filtering: "正在过滤支持工具调用的模型"
     model_filter_result: "已过滤出 {count} 个支持工具调用的模型"
     model_filter_empty: "未找到支持工具调用的模型，显示完整列表"
     model_filter_prompt: "过滤："
     model_filter_hint: "输入关键词过滤，↑/↓ 选择，回车确认，Esc 返回。选择自定义模型可手动输入。"
-    model_column: "模型"
-    model_saved_as: "保存为"
-    model_no_results: "暂无可选模型（可输入自定义）"
     model_custom_option: "自定义模型..."
-    model_custom_prompt: "自定义模型名称"
     model_custom_required: "模型名称不能为空"
     model_custom_saved_as: "将保存为：{model}"
     verify_title: "验证"
     verify_header: "正在验证模型的工具调用能力..."
-    verify_hint: "提示：可按 Ctrl+C 终止在线验证（不会退出向导）"
-    verify_simple_in_progress: "验证中..."
     verify_connectivity_in_progress: "正在检查连通性..."
     verify_tool_in_progress: "正在检查工具调用能力..."
     verify_static_no_tool_support: "模型不支持工具调用（静态检测）"
     verify_simple_success: "验证成功"
-    verify_simple_failed: "验证失败"
     verify_simple_failed_with_reason: "验证失败：{reason}"
     verify_failed_unknown: "未知错误"
-    verify_static: "能力判定（litellm）"
-    verify_probe_basic: "基础探针（连通性+鉴权）"
-    verify_live: "在线验证（tool-call ping）"
-    verify_static_label: "静态判定"
-    verify_probe_basic_label: "基础探针"
     verify_live_label: "在线验证"
-    verify_params_label: "支持参数"
-    verify_probe_basic_detail: "基础探针详情"
     verify_live_detail: "详情"
     verify_timeout: "在线验证超时"
     verify_cancelled: "在线验证已终止"
-    verify_probe_failed: "基础探针失败：{error}"
-    verify_no_tool_call: "模型未返回工具调用"
     verify_no_tool_call_required: "强制调用未返回工具调用"
     verify_no_tool_call_auto: "自动模式未触发工具调用"
     debug_request_title: "在线请求（{mode}）"
@@ -121,14 +112,18 @@ cli:
     action_retry_model: "重新选择模型"
     action_retry_api_base: "重新输入 API Base"
     action_retry_api_key: "重新输入 API Key"
+    action_retry_free_key: "重试免费 Key 注册"
+    action_fallback_manual: "切换到手动配置"
+    action_use_free_key: "使用免费 API Key"
+    action_manual_setup: "手动配置 Provider"
     action_change_provider: "更换 Provider"
     action_continue: "继续保存（不推荐）"
     action_exit: "退出配置"
+    action_agree: "同意并继续"
+    action_disagree: "不同意"
     retry_api_base_prompt: "请输入 API Base（输入 back 返回）"
     retry_api_base_prompt_with_current: "请输入 API Base（当前：{current}，输入 back 返回）"
     retry_api_base_required: "API Base 不能为空"
-    tool_unsupported_title: "不支持工具调用"
-    tool_unsupported: "当前模型/端点不支持 tool call，aish 的 Agentic 能力将不可用。"
     saved: "配置已保存"
     saved_with_warning: "配置已保存（未验证 tool call）"
     non_interactive: "当前环境不可交互，无法运行配置向导"
@@ -136,30 +131,13 @@ cli:
     required_cancelled: "缺少必要配置，已退出"
 
   startup:
-    config_loaded: "🔧 配置已加载："
     label:
-      config_file: "   配置文件"
-      security_policy: "   安全策略"
-      model: "   模型"
-      api_key: "   API Key"
-      api_base: "   API Base"
-      verbose: "   详细日志"
-      langfuse: "   Langfuse"
       skills: "   技能"
-    api_key_present: "✓"
-    api_key_missing: "✗"
-    no_api_key_warning: "警告：未检测到 API Key"
     goodbye: "👋 再见！"
     config_file_error: "❌ 配置文件错误：{error}"
     config_file_hint: "💡 使用 --config 指定有效的配置文件路径"
-    security_policy_not_found: "未找到安全策略（使用默认策略）"
-    skills_loaded: "{label}: #{count} 已加载"
-    value:
-      enabled: "启用"
-      disabled: "禁用"
 
   langfuse:
-    disabled: "   Langfuse 集成已禁用"
     incomplete: "⚠️  Langfuse 配置不完整"
     missing: "   缺少: {var}"
     complete: "✅ Langfuse 配置完整"
@@ -169,7 +147,6 @@ cli:
 
   parse_errors:
     title: "错误"
-    help_hint: "使用 --help 获取更多信息。"
     option_requires_argument: "选项 {option} 需要一个参数。"
     no_such_option: "未知选项：{option}"
     missing_parameter: "缺少参数：{param}"
@@ -177,28 +154,10 @@ cli:
     generic: "参数错误：{message}"
 
 shell:
-  welcome_title: "🚀 AI Shell"
-  welcome_markdown: |
-    欢迎使用 AI Shell！这是一个具备完整 PTY 支持并内置大模型能力的真正 Shell。
-
-    ## 主要特性：
-    - 🔧 **完整 Shell 兼容**：完整 PTY 支持，可运行任意二进制程序
-    - 🤖 **AI 集成**：内置大模型助手，用于帮助与建议
-    - 📊 **Rich 输出**：基于 Rich 的美观终端界面
-    - 📝 **智能历史**：命令历史与 AI 上下文融合
-
-    ## 快速开始：
-    - 像普通 Shell 一样使用：`ls`、`top`、`vim`、`ssh` 等
-    - 向 AI 提问：以 `;` 开头提问（如：`; 如何查找大文件？`）
-    - 输入 `help` 查看更多信息
-
-    立即开始你的增强式 Shell 体验！
-
   welcome2:
     header: ">_ AI Shell {version}"
     model_hint: "（输入 /model 切换模型）"
     label:
-      version: "版本"
       model: "模型"
       config: "配置"
     quick_start:
@@ -230,12 +189,9 @@ shell:
       content_preview: "内容预览"
       fallback_hint: "提示"
       risk_level: "风险等级"
-      matched_rule: "命中规则"
-      matched_paths: "命中路径"
       reasons: "原因"
       alternatives: "替代方案"
       impact: "影响"
-      confirm_message: "确认提示"
       no_additional_info: "未提供更多信息。"
 
     fallback:
@@ -253,7 +209,7 @@ shell:
   command_cancelled: "命令已取消"
 
   error_correction:
-    press_semicolon_hint: "命令执行失败。按 ; 自动分析修复，或直接输入下一条命令。"
+    press_semicolon_hint: "命令执行失败。输入 ; 后按 Enter 自动分析修复，或直接输入下一条命令。"
     corrected_command_label: "修复建议:"
 
   error:
@@ -263,6 +219,9 @@ shell:
     llm_error_title: "❌ 大模型请求失败"
     llm_error_details_title: "调试详情"
     tool_args_json_invalid_hint: "❌ 请求失败，请重试。"
+
+  hint:
+    run_setup: "输入 /setup 重新配置 API Key"
 
   prompt:
     confirm_execute: "?是否执行此命令? [y/n]: "
@@ -276,11 +235,6 @@ shell:
     switch_same: "模型未变更，仍为: {model}"
     switch_success: "已切换模型: {model}"
     verify_failed: "模型验证失败: {reason}"
-    verify_unavailable: "模型验证不可用，请检查安装或重启应用"
-    verify_no_tool_reason: "模型不支持工具调用"
-    verify_unknown: "无法确认模型是否支持工具调用"
-    verify_provider_error: "无法解析模型提供方，请使用 provider/model 格式（如 deepseek/deepseek-chat）"
-    verify_model_not_found: "模型不存在或不可用（{model}）"
 
   setup:
     no_config_manager: "无法重新配置：配置管理器不可用"
@@ -289,10 +243,7 @@ shell:
 
   ask_user:
     title: "请选择"
-    ok: "确定"
-    cancel: "稍后用默认"
     custom_label: "自定义："
-    custom_prompt: "输入任意内容："
     hint_select: "↑/↓ 选择 • Enter 确认 • Esc 取消"
     hint_custom: "直接输入自定义内容 • Enter 确认 • Tab 切换选项 • Esc 取消"
     paused:
@@ -303,9 +254,7 @@ shell:
       custom_input: "你也可以直接回复任意自定义内容。"
       how_to: "你可以直接回复选项 value（或编号），或输入 `; 使用默认继续` / `; continue with default`（默认：{default}）。"
 
-  command_interrupted: "\n❌ 命令执行已中断"
   diagnose_cancelled: "  └─ ❌ 系统诊断已取消"
-  operation_cancelled: "❌ 操作已取消"
 
   status:
     thinking: "思考中"
@@ -325,7 +274,6 @@ security:
     allow: "直接放行"
     confirm: "需要确认"
     block: "阻断"
-
   sandbox_unavailable:
     title: "⚠️ 沙箱不可用"
     line1: "检测到沙箱不可用，无法评估命令风险。"
@@ -338,8 +286,6 @@ security:
     ipc_unavailable: "无法连接沙箱服务（aish-sandbox.socket 未运行或未安装）"
     ipc_failed: "沙箱服务启动失败（aish-sandbox）"
     sandbox_execute_failed: "无法评估命令风险，请确认后执行"
-
-  low_risk_notice: "安全提示：{reason}"
 
   risk_reason:
     sandbox_disabled_by_policy: "策略配置已关闭沙箱，无法获取文件变更信息进行风险评估；将按“{action}”处理。"
@@ -537,8 +483,8 @@ help:
       usage: "export [-fn] [name[=value] ...]\nexport -p"
       options:
         - ["-f", "名称指向 shell 函数（不支持）"]
-        - ["-n", "移除名称的 export 属性"]
-        - ["-p", "显示所有已导出的变量列表"]
+        - ["-n", "移除每个名称的 export 属性"]
+        - ["-p", "显示所有已导出的变量"]
         - ["--", "停止进一步的选项处理"]
       examples:
         - "export PATH=/usr/local/bin:$PATH"
@@ -628,12 +574,3 @@ help:
 
 errors:
   litellm_not_installed: "litellm 模块未安装"
-  security_blocked_task: "任务未完成。由于系统安全限制，该操作已被阻断。"
-  llm:
-    auth: "认证失败：请检查 API_Key 是否正确。"
-    rate_limit: "请求过于频繁：已触发限流，请稍后重试。"
-    invalid_request: "请求参数无效：请检查模型名称/接口地址（API Base）以及请求参数。"
-    timeout: "请求超时：请检查网络连接或稍后重试。"
-    service_unavailable: "服务暂不可用：请稍后重试，或更换模型/Provider。"
-    context_length: "上下文过长：请清理对话历史或缩短输入内容。"
-    unknown: "调用大模型失败：{message}"

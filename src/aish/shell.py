@@ -27,6 +27,7 @@ from anyio import to_thread
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
+from rich.box import HORIZONTALS
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
@@ -281,6 +282,9 @@ class AIShell:
         # Pending error correction info (set when command fails)
         self._pending_error_correction: Optional[dict] = None
 
+        # Last command exit code for prompt hooks
+        self._last_exit_code: int = 0
+
         # Pre-load system info (static info from cache if available)
         self.uname_info, self.os_info, self.basic_env_info = (
             get_or_fetch_static_env_info()
@@ -355,6 +359,109 @@ class AIShell:
         self._input_router = ShellInputRouter(self)
         self._command_service = ShellCommandService(self)
         self._actions = build_default_actions(self, self._command_service)
+
+        # Initialize script system (only if enabled)
+        if self.config.enable_scripts:
+            from .scripts import ScriptExecutor, ScriptHotReloadService, ScriptRegistry
+            from .scripts.hooks import HookManager
+
+            self.logger.debug("Initializing script system")
+
+            self.script_registry = ScriptRegistry()
+            self.script_executor = ScriptExecutor(
+                llm_session=self.llm_session,
+                env_manager=self.env_manager,
+            )
+            self.hook_manager = HookManager(self.script_registry, self.script_executor)
+
+            # Initialize script hot reload service
+            self._script_hotreload_service = ScriptHotReloadService(
+                script_registry=self.script_registry, debounce_ms=200
+            )
+            # Start the hot reload service
+            self._script_hotreload_service.start()
+
+            # Load scripts on startup
+            try:
+                self.script_registry.load_all_scripts()
+                script_count = len(self.script_registry.list_scripts())
+                if script_count > 0:
+                    self.logger.debug("Loaded %d scripts", script_count)
+            except Exception as e:
+                self.logger.warning("Failed to load scripts: %s", e)
+
+            # Initialize default prompt template
+            self._init_prompt_template()
+
+    def _init_prompt_template(self) -> None:
+        """Initialize default prompt template if not exists."""
+        import shutil
+
+        # Skip for custom config or pytest
+        if getattr(self.config, "is_custom_config", False):
+            return
+
+        is_pytest = any(
+            name == "pytest" or name.startswith("pytest.") or name.startswith("_pytest")
+            for name in sys.modules
+        )
+        if is_pytest:
+            return
+
+        # User hooks directory - use config_dir if available, fallback to default
+        if self.config_manager and hasattr(self.config_manager, "config_dir"):
+            base_config_dir = self.config_manager.config_dir
+        else:
+            # Fallback: check XDG_CONFIG_HOME or use default
+            xdg_config = os.environ.get("XDG_CONFIG_HOME")
+            if xdg_config:
+                base_config_dir = Path(xdg_config) / "aish"
+            else:
+                base_config_dir = Path.home() / ".config" / "aish"
+
+        user_hooks_dir = base_config_dir / "scripts" / "hooks"
+        user_prompt = user_hooks_dir / "aish_prompt.aish"
+
+        # Skip if user already has a prompt
+        if user_prompt.exists():
+            return
+
+        # Find template in package
+        template_path = None
+
+        # Check for development location
+        dev_template = Path(__file__).parent / "scripts" / "templates" / "aish_prompt.aish"
+        if dev_template.exists():
+            template_path = dev_template
+
+        # Check for PyInstaller bundle
+        if not template_path and getattr(sys, "frozen", False):
+            if hasattr(sys, "_MEIPASS"):
+                bundle_template = Path(sys._MEIPASS) / "aish" / "scripts" / "templates" / "aish_prompt.aish"
+                if bundle_template.exists():
+                    template_path = bundle_template
+
+        # Check for system install locations
+        if not template_path:
+            for sys_path in [
+                Path("/usr/share/aish/scripts/templates/aish_prompt.aish"),
+                Path("/usr/local/share/aish/scripts/templates/aish_prompt.aish"),
+            ]:
+                if sys_path.exists():
+                    template_path = sys_path
+                    break
+
+        # Copy template if found
+        if template_path:
+            try:
+                user_hooks_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(template_path, user_prompt)
+                self.logger.debug("Installed default prompt template to %s", user_prompt)
+                # Reload scripts so the new prompt is immediately available
+                if hasattr(self, "script_registry"):
+                    self.script_registry.load_all_scripts()
+            except (OSError, IOError) as e:
+                self.logger.debug("Could not install prompt template: %s", e)
 
     def _resolve_terminal_resize_mode(self) -> str:
         mode = str(getattr(self.config, "terminal_resize_mode", "full")).strip().lower()
@@ -547,8 +654,134 @@ class AIShell:
         if self._tui_app is not None:
             self._tui_app.set_cwd(cwd)
 
-        prompt_style = getattr(self.config, "prompt_style", "🚀")
-        return f"{prompt_style} {os.path.basename(cwd)} > "
+        # Legacy mode: simple prompt when scripts disabled
+        if not getattr(self.config, "enable_scripts", True):
+            prompt_style = getattr(self.config, "prompt_style", "🚀")
+            return f"{prompt_style} {os.path.basename(cwd)} > "
+
+        # Try custom prompt hook first
+        if hasattr(self, "hook_manager") and self.hook_manager:
+            custom_prompt = self.hook_manager.run_prompt_hook(
+                last_exit_code=self._last_exit_code
+            )
+            if custom_prompt:
+                return custom_prompt
+
+        # Fallback: enhanced default prompt with git info
+        return self._build_default_prompt(cwd)
+
+    def _build_default_prompt(self, cwd: str) -> str:
+        """Build default prompt with compact colorful style.
+
+        Args:
+            cwd: Current working directory.
+
+        Returns:
+            Default prompt string with path, git status, and colors.
+        """
+        import subprocess
+
+        # ANSI colors
+        R, D = "\033[0m", "\033[2m"
+        G, Y, RD, BL, M, C = "\033[32m", "\033[33m", "\033[31m", "\033[34m", "\033[35m", "\033[36m"
+
+        # Abbreviate path
+        home = os.path.expanduser("~")
+        display_path = cwd
+        if cwd.startswith(home):
+            display_path = "~" + cwd[len(home) :]
+
+        # Shorten middle directories
+        parts = display_path.split("/")
+        if len(parts) > 1:
+            abbreviated = parts[0]  # ~
+            for i, part in enumerate(parts[1:-1], 1):
+                if part:
+                    abbreviated += "/" + part[0]
+            abbreviated += "/" + parts[-1]
+            display_path = abbreviated
+
+        p = f":{BL}{display_path}{R}"
+
+        # Git status
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                timeout=0.3,
+            )
+            if result.returncode == 0 and result.stdout.strip() == "true":
+                # Branch
+                result = subprocess.run(
+                    ["git", "branch", "--show-current"],
+                    capture_output=True,
+                    text=True,
+                    cwd=cwd,
+                    timeout=0.3,
+                )
+                branch = result.stdout.strip() or "HEAD"
+                p += f"|{M}{branch}{R}"
+
+                # Status
+                result = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    capture_output=True,
+                    text=True,
+                    cwd=cwd,
+                    timeout=0.5,
+                )
+                if result.returncode == 0:
+                    lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+                    staged = sum(1 for line in lines if line and line[0] in "MADRC")
+                    modified = sum(1 for line in lines if line and line[1] in "MD")
+                    untracked = sum(1 for line in lines if line.startswith("??"))
+
+                    # Status indicator color
+                    if staged > 0:
+                        p += f"{Y}●{R} {Y}+{staged}{R}"
+                    elif modified > 0:
+                        p += f"{RD}●{R} {RD}~{modified}{R}"
+                    elif untracked > 0:
+                        p += f"{C}●{R} {D}?{untracked}{R}"
+                    else:
+                        p += f"{G}●{R}"
+
+                # Ahead/behind
+                result = subprocess.run(
+                    ["git", "rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
+                    capture_output=True,
+                    text=True,
+                    cwd=cwd,
+                    timeout=0.3,
+                )
+                if result.returncode == 0:
+                    parts = result.stdout.strip().split()
+                    if len(parts) == 2:
+                        behind, ahead = parts
+                        if ahead != "0":
+                            p += f" {C}↑{ahead}{R}"
+                        if behind != "0":
+                            p += f" {C}↓{behind}{R}"
+
+        except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired):
+            pass
+
+        # Virtual env
+        venv = os.environ.get("VIRTUAL_ENV")
+        if venv and not venv.endswith("/aish/.venv") and "/aish/.venv/" not in venv:
+            p += f" {C}🐍{R}"
+        elif os.environ.get("CONDA_DEFAULT_ENV"):
+            p += f" {C}🐍{R}"
+
+        # Prompt symbol - use internal exit code for reliability
+        if self._last_exit_code != 0:
+            p += f" {RD}➜➜{R} "
+        else:
+            p += f" {G}➜{R} "
+
+        return p
 
     async def get_user_input(
         self, prompt_text: Optional[str] = None, _recursion_depth: int = 0
@@ -572,6 +805,10 @@ class AIShell:
 
     def _exit_shell(self) -> None:
         """Exit entrypoint: finalize UI and print goodbye on a clean line."""
+        # Stop script hot reload service
+        if hasattr(self, "_script_hotreload_service"):
+            self._script_hotreload_service.stop()
+
         # Ensure any live/streaming UI is finalized before exit message.
         self._stop_animation()
         self._reset_reasoning_state()
@@ -1033,7 +1270,9 @@ class AIShell:
             await self.handle_json_command(json_cmd)
         else:
             # Normal response without JSON command
-            self.console.print(Panel(Markdown(response), border_style=border_style))
+            self.console.print(
+                Panel(Markdown(response), border_style=border_style, box=HORIZONTALS)
+            )
 
     async def handle_error_detect(self, command: str, stdout: str, stderr: str):
         """Handle smart error detection when return code is 0"""
@@ -1440,6 +1679,7 @@ class AIShell:
         new_model = new_config.model
         new_api_base = new_config.api_base
         new_api_key = new_config.api_key
+        new_is_free_key = new_config.is_free_key
 
         self.llm_session.update_model(
             new_model,
@@ -1450,6 +1690,7 @@ class AIShell:
         self.config.model = new_model
         self.config.api_base = new_api_base
         self.config.api_key = new_api_key
+        self.config.is_free_key = new_is_free_key
         if self.session_record is not None:
             self.session_record.model = new_model
 
@@ -2362,6 +2603,9 @@ class AIShell:
         offload: dict[str, Any] | None = None,
     ):
         """Add shell execution context for LLM with output previews and offload hints."""
+        # Update last exit code for prompt hooks
+        self._last_exit_code = returncode
+
         preview_bytes = self._get_shell_preview_bytes()
         stdout_preview, stdout_truncated = self._truncate_utf8_preview(
             stdout or "",
@@ -2531,6 +2775,13 @@ class AIShell:
                 self.skill_manager.reload_if_dirty()
             except Exception:
                 pass
+
+            # Lazy script reload: reload scripts if invalidated
+            if hasattr(self, "script_registry"):
+                try:
+                    self.script_registry.reload_if_dirty()
+                except Exception:
+                    pass
 
             ctx = ActionContext(
                 raw_input=user_input,
@@ -3094,6 +3345,34 @@ class AIShell:
         error_type = event.data.get("error_type", "general")
         error_details = event.data.get("error_details")
 
+        # Check for quota/rate limit errors (only for free key mode)
+        # self.config is ConfigModel, use .is_free_key attribute
+        is_free_key = getattr(self.config, "is_free_key", False)
+        quota_exhausted = False
+        service_unavailable = False
+        if is_free_key:
+            error_lower = str(error_message).lower()
+            # Check for quota exhaustion (rate limit, quota exceeded)
+            quota_exhausted = any(
+                keyword in error_lower
+                for keyword in [
+                    "rate limit", "quota", "insufficient", "429", "exceeded",
+                    "too many requests"
+                ]
+            )
+            # Check for service unavailability (auth errors, not found, server errors)
+            # These may indicate the free key is invalid or server resources exhausted
+            if not quota_exhausted:
+                service_unavailable = any(
+                    keyword in error_lower
+                    for keyword in [
+                        "401", "403", "404", "500", "502", "503", "504",
+                        "authentication", "unauthorized", "forbidden",
+                        "not found", "internal server error", "bad gateway",
+                        "service unavailable", "gateway timeout"
+                    ]
+                )
+
         if error_type == "streaming_error":
             self.console.print(f"❌ Streaming Error: {error_message}", style="red")
         elif error_type == "litellm_error":
@@ -3111,6 +3390,32 @@ class AIShell:
                         title=t("shell.error.llm_error_details_title"),
                         border_style="dim",
                     )
+                )
+            # Show quota exhausted hint
+            if quota_exhausted:
+                self.console.print(
+                    Panel(
+                        t("cli.setup.free_key_quota_exhausted_hint"),
+                        title=t("cli.setup.free_key_quota_exhausted"),
+                        border_style="yellow",
+                    )
+                )
+                self.console.print(
+                    f"💡 {t('shell.hint.run_setup')}",
+                    style="dim"
+                )
+            # Show service unavailable hint (for free key)
+            elif service_unavailable:
+                self.console.print(
+                    Panel(
+                        t("cli.setup.free_key_service_unavailable_hint"),
+                        title=t("cli.setup.free_key_service_unavailable"),
+                        border_style="yellow",
+                    )
+                )
+                self.console.print(
+                    f"💡 {t('shell.hint.run_setup')}",
+                    style="dim"
                 )
         else:
             self.console.print(f"❌ Error: {error_message}", style="red")
@@ -3340,11 +3645,11 @@ class AIShell:
                                 # Get first line of input
                                 first_input = await self.get_user_input(prompt_text)
 
-                                # Check for semicolon key press for error correction
-                                # Only if there's pending error correction
-                                if (
-                                    self._pending_error_correction
-                                    and first_input == "__CORRECT_SEMICOLON__"
+                                # Check for semicolon input for error correction
+                                # User must press Enter after typing ";" or "；" to trigger correction
+                                if self._pending_error_correction and first_input.strip() in (
+                                    ";",
+                                    "；",
                                 ):
                                     await self._execute_error_correction()
                                     continue
